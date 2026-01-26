@@ -1,1 +1,108 @@
 
+<!-- public/index.html -->
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>社内撮影アップローダー</title>
+  <style>
+    body{font-family:system-ui, sans-serif;margin:16px}
+    video,canvas{max-width:100%;height:auto}
+    .row{margin:8px 0}
+    button{padding:10px 14px}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  </style>
+</head>
+<body>
+  <div class="row">
+    <label>extraID：</label>
+    <input id="extraID" placeholder="EntraIDまたは識別子" />
+  </div>
+  <div class="row">
+    <video id="v" autoplay playsinline></video>
+    <canvas id="c" style="display:none"></canvas>
+  </div>
+  <div class="row">
+    <button id="shoot">撮影→送信</button>
+  </div>
+  <div class="row mono" id="log"></div>
+
+<script>
+const v = document.getElementById('v');
+const c = document.getElementById('c');
+const shoot = document.getElementById('shoot');
+const log = document.getElementById('log');
+
+async function initCam(){
+  const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+  v.srcObject = s;
+}
+function now(){ return performance.now(); }
+function tsISO(){ return new Date().toISOString().replace(/[:.]/g,''); }
+function logln(s){ log.textContent = (log.textContent ? log.textContent + "\n" : "") + s; }
+
+async function postForm(url, form){
+  const r = await fetch(url, { method:'POST', body: form });
+  if(!r.ok) throw new Error(url);
+  return r.json();
+}
+async function postJSON(url, data){
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+  if(!r.ok) throw new Error(url);
+  return r.json();
+}
+
+shoot.onclick = async () => {
+  try {
+    const extraID = document.getElementById('extraID').value || 'unknown';
+    // 計測開始
+    const t0 = now();
+
+    // 撮影
+    const w = v.videoWidth, h = v.videoHeight;
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(v, 0, 0, w, h);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+
+    const t1 = now();
+
+    // 転送
+    const form = new FormData();
+    form.append('extraID', extraID);
+    form.append('ts', tsISO());
+    form.append('photo', blob, 'photo.jpg');
+    const up = await postForm('/upload', form);
+
+    const t2 = now();
+
+    // CV
+    const cv = await postJSON('/cv', { blobName: up.blobName, extraID });
+
+    const t3 = now();
+
+    // DI
+    const di = await postJSON('/di', { blobName: up.blobName, extraID });
+
+    const t4 = now();
+
+    // 出力（計測）
+    const lines = [
+      `撮影(ms): ${(t1 - t0).toFixed(0)}`,
+      `転送(ms): ${(t2 - t1).toFixed(0)}`,
+      `CV(ms):   ${(t3 - t2).toFixed(0)}`,
+      `DI(ms):   ${(t4 - t3).toFixed(0)}`,
+      `合計(ms): ${(t4 - t0).toFixed(0)}`
+    ];
+    logln(lines.join('\n'));
+  } catch (e) {
+    logln('失敗');
+  }
+};
+
+initCam();
+</script>
+</body>
+</html>
+
