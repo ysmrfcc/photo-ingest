@@ -1,0 +1,9 @@
+# Azure Storage
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=youraccount;AccountKey=****;EndpointSuffix=core.windows.net
+BLOB_CONTAINER=photos
+
+# Upload limits (MB)
+MAX_UPLOAD_MB=20
+
+# App Service provides PORT automatically
+# PORT=3000
