@@ -19,11 +19,14 @@ if (!AZ_CONN) {
 }
 const blobServiceClient = AZ_CONN ? BlobServiceClient.fromConnectionString(AZ_CONN) : null;
 
+// 受信サイズ制限
 app.use(express.json({ limit: `${maxUploadMb}mb` }));
 app.use(express.urlencoded({ extended: true, limit: `${maxUploadMb}mb` }));
 
+// 静的配信（任意）
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ヘルスチェック
 app.get('/', (_req, res) => res.type('text').send('OK'));
 
 // --- utils ---
@@ -39,7 +42,7 @@ function detectContentType(buffer, fallback = 'application/octet-stream') {
 }
 
 function genBlobName(ext = '') {
-  const ts = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+  const ts = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14); // YYYYMMDDhhmmss
   const rand = crypto.randomBytes(6).toString('hex');
   return `${ts}_${rand}${ext ? '.' + ext.replace(/^\./, '') : ''}`;
 }
@@ -64,7 +67,7 @@ async function uploadBufferToBlob(buffer, contentType, preferredExt = '') {
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: maxUploadMb * 1024 * 1024, files: 1 }
+  limits: { fileSize: maxUploadMb * 1024 * 1024, files: 1 },
 });
 
 app.post('/api/upload', upload.single('file'), async (req, res) => {
@@ -84,7 +87,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // --- 2) JSON(base64) 受信 ---
-// 例: { "filename":"photo.jpg", "data":"data:image/jpeg;base64,/9j/..." } または { "filename":"photo.jpg", "base64":"/9j/..." }
+// 例: { "filename":"photo.jpg", "data":"data:image/jpeg;base64,/9j/..." }
+//   または { "filename":"photo.jpg", "base64":"/9j/..." }
 app.post('/api/uploadBase64', async (req, res) => {
   try {
     const { filename, data, base64 } = req.body || {};
@@ -116,6 +120,7 @@ app.post('/api/uploadBase64', async (req, res) => {
   }
 });
 
+// 起動
 app.listen(port, '0.0.0.0', () => {
   console.log(`listening on ${port}`);
 });
